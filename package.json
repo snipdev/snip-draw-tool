@@ -1,0 +1,39 @@
+{
+  "name": "snip-draw-tool",
+  "version": "1.0.0",
+  "description": "Snip Draw Tool",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.snipdraw.tool",
+    "productName": "Snip Draw Tool",
+    "directories": {
+      "output": "dist"
+    },
+    "icon": "icon.ico",
+    "files": [
+      "main.js",
+      "preload.js",
+      "icon.ico",
+      "renderer/**/*",
+      "node_modules/**/*"
+    ],
+    "win": {
+      "target": "portable"
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "png-to-ico": "^3.0.1",
+    "sharp": "^0.35.2"
+  },
+  "dependencies": {
+    "pngjs": "^7.0.0"
+  }
+}

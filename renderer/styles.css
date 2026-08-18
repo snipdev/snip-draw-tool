@@ -1,0 +1,322 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root,
+[data-theme="dark"] {
+  --bg-body: #0f0f1a;
+  --bg-toolbar: #1a1a2e;
+  --bg-main: #0f0f1a;
+  --bg-overlay: #1e1e3a;
+  --bg-input: #0f0f1a;
+  --bg-loading: #1a1a2e;
+  --bg-btn-hover: #2a2a4a;
+  --bg-btn-active: #3b3b6b;
+  --bg-text-btn: #2a2a4a;
+  --bg-text-btn-hover: #3a3a5a;
+  --bg-text-confirm: #4f46e5;
+  --bg-text-confirm-hover: #6366f1;
+  --text-primary: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-btn-active: #818cf8;
+  --border-toolbar: #2a2a4a;
+  --border-overlay: #4a4a7a;
+  --border-input: #3a3a5a;
+  --border-input-focus: #6366f1;
+  --border-btn-active: #6366f1;
+  --border-confirm: #6366f1;
+  --border-swatch-hover: #94a3b8;
+  --border-swatch-active: #ffffff;
+  --separator: #2a2a4a;
+  --scrollbar-thumb: #3a3a5a;
+  --scrollbar-thumb-hover: #5a5a7a;
+  --spinner-border: #2a2a4a;
+  --spinner-top: #818cf8;
+  --text-loading: #94a3b8;
+  --shadow-overlay: rgba(0, 0, 0, 0.5);
+  --shadow-swatch-active: rgba(255,255,255,0.4);
+}
+
+[data-theme="light"] {
+  --bg-body: #f1f5f9;
+  --bg-toolbar: #ffffff;
+  --bg-main: #f1f5f9;
+  --bg-overlay: #ffffff;
+  --bg-input: #ffffff;
+  --bg-loading: #ffffff;
+  --bg-btn-hover: #e2e8f0;
+  --bg-btn-active: #e0e7ff;
+  --bg-text-btn: #f1f5f9;
+  --bg-text-btn-hover: #e2e8f0;
+  --bg-text-confirm: #4f46e5;
+  --bg-text-confirm-hover: #6366f1;
+  --text-primary: #1e293b;
+  --text-muted: #64748b;
+  --text-btn-active: #4f46e5;
+  --border-toolbar: #e2e8f0;
+  --border-overlay: #cbd5e1;
+  --border-input: #cbd5e1;
+  --border-input-focus: #6366f1;
+  --border-btn-active: #6366f1;
+  --border-confirm: #6366f1;
+  --border-swatch-hover: #64748b;
+  --border-swatch-active: #1e293b;
+  --separator: #e2e8f0;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
+  --spinner-border: #e2e8f0;
+  --spinner-top: #4f46e5;
+  --text-loading: #64748b;
+  --shadow-overlay: rgba(0, 0, 0, 0.15);
+  --shadow-swatch-active: rgba(0,0,0,0.3);
+}
+
+body {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  background: #0f0f1a;
+  background: var(--bg-body, #0f0f1a);
+  color: #e2e8f0;
+  color: var(--text-primary, #e2e8f0);
+  overflow: hidden;
+  height: 100vh;
+  user-select: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border-toolbar);
+  gap: 8px;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tool-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 16px;
+}
+
+.tool-btn:hover {
+  background: var(--bg-btn-hover);
+  color: var(--text-primary);
+}
+
+.tool-btn.active {
+  background: var(--bg-btn-active);
+  color: var(--text-btn-active);
+  border-color: var(--border-btn-active);
+}
+
+.separator {
+  width: 1px;
+  height: 24px;
+  background: var(--separator);
+  margin: 0 4px;
+}
+
+#main-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-main);
+}
+
+#chart-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+#chart-canvas.pointer-cursor {
+  cursor: default;
+}
+
+#chart-canvas.eraser-cursor {
+  cursor: not-allowed;
+}
+
+#text-input-overlay {
+  position: absolute;
+  z-index: 20;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-overlay);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 8px 32px var(--shadow-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+}
+
+#text-input-overlay.hidden {
+  display: none;
+}
+
+#text-input {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 40px;
+  outline: none;
+}
+
+#text-input:focus {
+  border-color: var(--border-input-focus);
+}
+
+.text-input-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.text-input-actions button {
+  padding: 4px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg-text-btn);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.text-input-actions button:hover {
+  background: var(--bg-text-btn-hover);
+}
+
+.text-input-actions button:first-child {
+  background: var(--bg-text-confirm);
+  border-color: var(--border-confirm);
+}
+
+.text-input-actions button:first-child:hover {
+  background: var(--bg-text-confirm-hover);
+}
+
+#color-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
+}
+
+.color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.color-swatch:hover {
+  transform: scale(1.2);
+  border-color: var(--border-swatch-hover);
+}
+
+.color-swatch.active {
+  border-color: var(--border-swatch-active);
+  box-shadow: 0 0 6px var(--shadow-swatch-active);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #1a1a2e;
+  background: var(--bg-loading, #1a1a2e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.4s ease;
+}
+
+#loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-content {
+  text-align: center;
+}
+
+.loading-content h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: var(--text-primary);
+}
+
+.loading-spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto;
+  border: 3px solid var(--spinner-border);
+  border-top-color: var(--spinner-top);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-content p {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-loading);
+}
