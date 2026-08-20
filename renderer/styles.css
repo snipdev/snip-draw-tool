@@ -37,6 +37,10 @@
   --text-loading: #94a3b8;
   --shadow-overlay: rgba(0, 0, 0, 0.5);
   --shadow-swatch-active: rgba(255,255,255,0.4);
+  --bg-confirm-dim: rgba(0, 0, 0, 0.45);
+  --bg-danger: #dc2626;
+  --bg-danger-hover: #ef4444;
+  --border-danger: #dc2626;
 }
 
 [data-theme="light"] {
@@ -71,6 +75,10 @@
   --text-loading: #64748b;
   --shadow-overlay: rgba(0, 0, 0, 0.15);
   --shadow-swatch-active: rgba(0,0,0,0.3);
+  --bg-confirm-dim: rgba(15, 23, 42, 0.35);
+  --bg-danger: #dc2626;
+  --bg-danger-hover: #ef4444;
+  --border-danger: #dc2626;
 }
 
 body {
@@ -134,6 +142,16 @@ body {
   border-color: var(--border-btn-active);
 }
 
+.tool-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.tool-btn:disabled:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
+
 .separator {
   width: 1px;
   height: 24px;
@@ -160,7 +178,31 @@ body {
 }
 
 #chart-canvas.eraser-cursor {
-  cursor: not-allowed;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Crect x='4' y='9' width='16' height='7' rx='2' fill='%23fda4af' stroke='%239f1239' stroke-width='1.5'/%3E%3Cpath d='M12 9v7' stroke='%239f1239' stroke-width='1'/%3E%3C/svg%3E") 12 12, auto;
+}
+
+#pan-hint {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--text-muted);
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-overlay);
+  box-shadow: 0 4px 16px var(--shadow-overlay);
+  pointer-events: none;
+  opacity: 0.9;
+  white-space: nowrap;
+  transition: opacity 0.4s ease;
+}
+
+#pan-hint.faded {
+  opacity: 0;
 }
 
 #text-input-overlay {
@@ -179,6 +221,45 @@ body {
 
 #text-input-overlay.hidden {
   display: none;
+}
+
+#confirm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-confirm-dim);
+}
+
+#confirm-overlay.hidden {
+  display: none;
+}
+
+.confirm-box {
+  background: var(--bg-overlay);
+  border: 1px solid var(--border-overlay);
+  border-radius: 10px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 32px var(--shadow-overlay);
+  min-width: 260px;
+}
+
+.confirm-box p {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.danger-btn {
+  background: var(--bg-danger) !important;
+  border-color: var(--border-danger) !important;
+  color: #fff !important;
+}
+
+.danger-btn:hover {
+  background: var(--bg-danger-hover) !important;
 }
 
 #text-input {
@@ -234,6 +315,52 @@ body {
   padding: 0 2px;
 }
 
+#thickness-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+}
+
+#width-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+#width-slider {
+  width: 70px;
+  accent-color: var(--border-btn-active);
+  cursor: pointer;
+}
+
+#width-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 14px;
+  text-align: center;
+}
+
+#status-group {
+  margin-left: auto;
+  padding: 0 6px;
+}
+
+#tool-status {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid var(--border-input);
+  border-radius: 20px;
+  background: var(--bg-text-btn);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
 .color-swatch {
   width: 20px;
   height: 20px;
@@ -253,6 +380,34 @@ body {
 .color-swatch.active {
   border-color: var(--border-swatch-active);
   box-shadow: 0 0 6px var(--shadow-swatch-active);
+}
+
+.custom-color-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.custom-color-wrap input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 50%;
+}
+
+.custom-color-wrap input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.custom-color-wrap input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
 }
 
 ::-webkit-scrollbar {

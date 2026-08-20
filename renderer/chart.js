@@ -3,13 +3,12 @@ const ChartRenderer = {
   ctx: null,
   width: 0,
   height: 0,
+  dpr: 1,
 
   gridSpacingX: 50,
   gridSpacingY: 50,
-  gridColor: '#1e1e3a',
   gridLineColor: '#2a2a4a',
   axisColor: '#4a4a6a',
-  labelColor: '#5a5a7a',
   selectionColor: '#818cf8',
   defaultTextColor: '#e2e8f0',
 
@@ -17,13 +16,11 @@ const ChartRenderer = {
     if (theme === 'light') {
       this.gridLineColor = '#e2e8f0';
       this.axisColor = '#cbd5e1';
-      this.labelColor = '#475569';
       this.selectionColor = '#4f46e5';
       this.defaultTextColor = '#1e293b';
     } else {
       this.gridLineColor = '#2a2a4a';
       this.axisColor = '#4a4a6a';
-      this.labelColor = '#a0a0c0';
       this.selectionColor = '#818cf8';
       this.defaultTextColor = '#e2e8f0';
     }
@@ -54,73 +51,63 @@ const ChartRenderer = {
 
   resize() {
     const rect = this.canvas.parentElement.getBoundingClientRect();
-    this.width = this.canvas.width = rect.width;
-    this.height = this.canvas.height = rect.height;
+    this.dpr = window.devicePixelRatio || 1;
+    this.width = rect.width;
+    this.height = rect.height;
+    this.canvas.width = Math.round(rect.width * this.dpr);
+    this.canvas.height = Math.round(rect.height * this.dpr);
+    this.canvas.style.width = rect.width + 'px';
+    this.canvas.style.height = rect.height + 'px';
+    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   },
 
-  render(elements, hoveredElement, selectedIds, placingPattern) {
-    this.drawGrid(this.ctx);
+  render(elements, hoveredElement, selectedIds, placingPattern, panX, panY, zoom) {
+    this.renderTo(this.ctx, this.width, this.height, elements, hoveredElement, selectedIds, placingPattern, panX, panY, zoom);
+  },
+
+  renderTo(ctx, width, height, elements, hoveredElement, selectedIds, placingPattern, panX, panY, zoom) {
+    this.drawGrid(ctx, width, height, panX, panY, zoom);
 
     for (const el of elements) {
       if (el === hoveredElement) continue;
-      this.drawElement(this.ctx, el, selectedIds && selectedIds.has(el.id));
+      this.drawElement(ctx, el, selectedIds && selectedIds.has(el.id));
     }
 
     if (hoveredElement) {
       const isHovSelected = selectedIds && selectedIds.has(hoveredElement.id);
-      this.drawElement(this.ctx, hoveredElement, isHovSelected, true);
+      this.drawElement(ctx, hoveredElement, isHovSelected, true);
     }
 
     if (placingPattern) {
-      this.drawPatternPreview(this.ctx, placingPattern);
+      this.drawPatternPreview(ctx, placingPattern);
     }
   },
 
-  drawGrid(ctx) {
+  drawGrid(ctx, width, height, panX = 0, panY = 0, zoom = 1) {
+    const z = zoom || 1;
+    const target = 50;
+    let interval = this.gridSpacingX;
+    while (interval * z > target * 1.5) interval /= 2;
+    while (interval * z < target * 0.75) interval *= 2;
+
+    const worldLeft = -panX / z;
+    const worldTop = -panY / z;
+    const worldRight = (width - panX) / z;
+    const worldBottom = (height - panY) / z;
+
     ctx.strokeStyle = this.gridLineColor;
-    ctx.lineWidth = 0.5;
+    ctx.lineWidth = 0.5 / z;
 
-    const gx = this.gridSpacingX;
-    const gy = this.gridSpacingY;
-
-    for (let x = gx; x < this.width; x += gx) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, this.height);
-      ctx.stroke();
+    ctx.beginPath();
+    for (let x = Math.floor(worldLeft / interval) * interval; x <= worldRight; x += interval) {
+      ctx.moveTo(x, worldTop);
+      ctx.lineTo(x, worldBottom);
     }
-
-    for (let y = gy; y < this.height; y += gy) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(this.width, y);
-      ctx.stroke();
+    for (let y = Math.floor(worldTop / interval) * interval; y <= worldBottom; y += interval) {
+      ctx.moveTo(worldLeft, y);
+      ctx.lineTo(worldRight, y);
     }
-
-    const labelIntervalX = Math.max(1, Math.floor(gx / 10));
-    const labelIntervalY = Math.max(1, Math.floor(gy / 10));
-
-    ctx.fillStyle = this.labelColor;
-    ctx.font = '9px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-
-    let barNum = 1;
-    for (let x = gx; x < this.width; x += gx) {
-      ctx.fillText(barNum.toString(), x, 2);
-      barNum++;
-      if (barNum > 100) break;
-    }
-
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-
-    let price = 1.0500;
-    for (let y = gy; y < this.height; y += gy) {
-      ctx.fillText(price.toFixed(4), 40, y);
-      price += 0.0010;
-      if (price > 2) break;
-    }
+    ctx.stroke();
   },
 
   drawElement(ctx, el, isSelected, isHovered) {
@@ -215,6 +202,10 @@ const ChartRenderer = {
       );
       ctx.setLineDash([]);
     }
+
+    if (isSelected) {
+      this.drawLineHandles(ctx, l);
+    }
     ctx.restore();
   },
 
@@ -257,6 +248,10 @@ const ChartRenderer = {
         Math.abs(a.y2 - a.y1) + 10
       );
       ctx.setLineDash([]);
+    }
+
+    if (isSelected) {
+      this.drawLineHandles(ctx, a);
     }
     ctx.restore();
   },
@@ -413,9 +408,13 @@ const ChartRenderer = {
     const tpColor = '#22c55e';
     const slColor = '#ef4444';
 
-    const formatPrice = (y) => {
-      const price = 1.0500 + (y / 50) * 0.001;
-      return price.toFixed(4);
+    const unitPx = 50;
+    const dirSign = el.direction === 'long' ? -1 : 1;
+    const unitLabel = (y) => {
+      const u = ((y - el.y) * dirSign) / unitPx;
+      const r = Math.round(u * 10) / 10;
+      const s = Number.isInteger(r) ? String(r) : r.toFixed(1);
+      return (r > 0 ? '+' : '') + s + 'u';
     };
 
     // --- vertical connectors (dotted) ---
@@ -482,10 +481,10 @@ const ChartRenderer = {
     ctx.fillText(isLong ? 'Long' : 'Short', labelX, el.y);
 
     ctx.fillStyle = tpColor;
-    ctx.fillText('TP ' + formatPrice(el.tpY), labelX, el.tpY);
+    ctx.fillText('TP ' + unitLabel(el.tpY), labelX, el.tpY);
 
     ctx.fillStyle = slColor;
-    ctx.fillText('SL ' + formatPrice(el.slY), labelX, el.slY);
+    ctx.fillText('SL ' + unitLabel(el.slY), labelX, el.slY);
 
     // --- Handle dots (only when selected) ---
     if (isSelected) {
@@ -540,8 +539,30 @@ const ChartRenderer = {
     const h = Math.abs(r.h);
     const hs = 4;
     return [
-      { type: 'bottomRight', cx: x + w, cy: y + h, hs: hs },
+      { type: 'nw', cx: x, cy: y, hs: hs },
+      { type: 'ne', cx: x + w, cy: y, hs: hs },
+      { type: 'sw', cx: x, cy: y + h, hs: hs },
+      { type: 'se', cx: x + w, cy: y + h, hs: hs },
     ];
+  },
+
+  getLineHandles(l) {
+    const hs = 4;
+    return [
+      { type: 'start', cx: l.x1, cy: l.y1, hs: hs },
+      { type: 'end', cx: l.x2, cy: l.y2, hs: hs },
+    ];
+  },
+
+  drawLineHandles(ctx, l) {
+    const handles = this.getLineHandles(l);
+    ctx.fillStyle = this.selectionColor;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    for (const h of handles) {
+      ctx.fillRect(h.cx - h.hs, h.cy - h.hs, h.hs * 2, h.hs * 2);
+      ctx.strokeRect(h.cx - h.hs, h.cy - h.hs, h.hs * 2, h.hs * 2);
+    }
   },
 
   drawRectHandles(ctx, r) {
@@ -588,5 +609,67 @@ const ChartRenderer = {
     ctx.lineWidth = 1;
     ctx.fillRect(h.cx - h.hs, h.cy - h.hs, h.hs * 2, h.hs * 2);
     ctx.strokeRect(h.cx - h.hs, h.cy - h.hs, h.hs * 2, h.hs * 2);
+  },
+
+  getBounds(el) {
+    switch (el.type) {
+      case 'candle': {
+        const top = Math.min(el.high, Math.min(el.open, el.close));
+        const bot = Math.max(el.low, Math.max(el.open, el.close));
+        return { x: el.x - el.width / 2, y: top, w: el.width, h: bot - top };
+      }
+      case 'line': case 'arrow':
+        return { x: Math.min(el.x1, el.x2), y: Math.min(el.y1, el.y2), w: Math.abs(el.x2 - el.x1), h: Math.abs(el.y2 - el.y1) };
+      case 'rect': {
+        const x = Math.min(el.x, el.x + el.w);
+        const y = Math.min(el.y, el.y + el.h);
+        return { x, y, w: Math.abs(el.w), h: Math.abs(el.h) };
+      }
+      case 'text': {
+        const fs = el.fontSize || 14;
+        return { x: el.x, y: el.y, w: 200, h: (el.text || '').split('\n').length * fs * 1.3 };
+      }
+      case 'pattern': {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const c of el.candles) {
+          const cx = el.x + c.dx;
+          const top = el.y + Math.min(c.open, c.close, c.high);
+          const bot = el.y + Math.max(c.open, c.close, c.low);
+          const w = c.width || 14;
+          minX = Math.min(minX, cx - w / 2); maxX = Math.max(maxX, cx + w / 2);
+          minY = Math.min(minY, top); maxY = Math.max(maxY, bot);
+        }
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }
+      case 'pencil': {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const p of el.points) {
+          minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+          maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+        }
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }
+      case 'position': {
+        const lineLen = 120;
+        const top = Math.min(el.y, el.tpY, el.slY);
+        const bot = Math.max(el.y, el.tpY, el.slY);
+        return { x: el.x, y: top, w: lineLen, h: bot - top };
+      }
+      default: return { x: el.x, y: el.y, w: 0, h: 0 };
+    }
+  },
+
+  drawEraserPreview(ctx, el) {
+    const b = this.getBounds(el);
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    this.drawElement(ctx, el, false, false);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 3]);
+    ctx.strokeRect(b.x - 4, b.y - 4, b.w + 8, b.h + 8);
+    ctx.setLineDash([]);
+    ctx.restore();
   },
 };

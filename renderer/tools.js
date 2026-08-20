@@ -18,12 +18,12 @@ const ToolManager = {
     dragOffsetX: 0, dragOffsetY: 0,
     dragStartX: 0, dragStartY: 0,
     pointerMoved: false,
+    historyCaptured: false,
     pencilPoints: [],
   },
   resizeState: {
     active: false,
     elIndex: -1,
-    candleIndex: -1,
     handleType: null,
   },
 
@@ -35,22 +35,25 @@ const ToolManager = {
     const rect = this.app.canvas.getBoundingClientRect();
     const screenX = e.clientX - rect.left;
     const screenY = e.clientY - rect.top;
+    const z = this.app.zoom || 1;
     return {
       screenX,
       screenY,
-      worldX: screenX - this.app.panX,
-      worldY: screenY - this.app.panY,
+      worldX: (screenX - this.app.panX) / z,
+      worldY: (screenY - this.app.panY) / z,
     };
   },
 
   onMouseDown(e) {
     const app = this.app;
+    this.state.historyCaptured = false;
     const { screenX, screenY, worldX, worldY } = this.getMouseWorld(e);
 
-    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+    if (e.button === 1 || (e.button === 0 && e.altKey) || (e.button === 0 && app.spaceDown)) {
       this.state.isPanning = true;
       this.state.panStartX = screenX - app.panX;
       this.state.panStartY = screenY - app.panY;
+      if (typeof app.hintPanned === 'function') app.hintPanned();
       return;
     }
 
@@ -64,6 +67,11 @@ const ToolManager = {
         app.elements.splice(idx, 1);
         app.history.push(app.elements.map(el => ({ ...el })));
         app.render();
+      } else {
+        this.state.isPanning = true;
+        this.state.panStartX = screenX - app.panX;
+        this.state.panStartY = screenY - app.panY;
+        if (typeof app.hintPanned === 'function') app.hintPanned();
       }
       return;
     }
@@ -71,15 +79,23 @@ const ToolManager = {
     if (tool === 'pointer') {
       const idx = this.findNearest(worldX, worldY);
       if (idx !== -1) {
-        app.selectedIds.clear();
-        app.selectedIds.add(app.elements[idx].id);
         const el = app.elements[idx];
+        if (e.shiftKey) {
+          if (app.selectedIds.has(el.id)) {
+            app.selectedIds.delete(el.id);
+            app.render();
+            return;
+          }
+          app.selectedIds.add(el.id);
+        } else {
+          app.selectedIds.clear();
+          app.selectedIds.add(el.id);
+        }
         if (el.type === 'candle') {
           const handle = this.findHandle(worldX, worldY, el);
           if (handle) {
             this.resizeState.active = true;
             this.resizeState.elIndex = idx;
-            this.resizeState.candleIndex = -1;
             this.resizeState.handleType = handle;
             this.state.pointerMoved = false;
             app.render();
@@ -91,7 +107,6 @@ const ToolManager = {
           if (handle) {
             this.resizeState.active = true;
             this.resizeState.elIndex = idx;
-            this.resizeState.candleIndex = -1;
             this.resizeState.handleType = 'fontSize';
             this.state.pointerMoved = false;
             app.render();
@@ -103,8 +118,18 @@ const ToolManager = {
           if (handle) {
             this.resizeState.active = true;
             this.resizeState.elIndex = idx;
-            this.resizeState.candleIndex = -1;
-            this.resizeState.handleType = 'bottomRight';
+            this.resizeState.handleType = handle;
+            this.state.pointerMoved = false;
+            app.render();
+            return;
+          }
+        }
+        if (el.type === 'line' || el.type === 'arrow') {
+          const handle = this.findLineHandle(worldX, worldY, el);
+          if (handle) {
+            this.resizeState.active = true;
+            this.resizeState.elIndex = idx;
+            this.resizeState.handleType = handle;
             this.state.pointerMoved = false;
             app.render();
             return;
@@ -115,7 +140,6 @@ const ToolManager = {
           if (handle) {
             this.resizeState.active = true;
             this.resizeState.elIndex = idx;
-            this.resizeState.candleIndex = -1;
             this.resizeState.handleType = handle;
             this.state.pointerMoved = false;
             app.render();
@@ -130,8 +154,15 @@ const ToolManager = {
         this.state.dragStartY = worldY;
         this.state.pointerMoved = false;
         app.render();
+      } else if (e.shiftKey) {
+        this.state.marqueeActive = true;
+        this.state.marquee = { sx: worldX, sy: worldY, ex: worldX, ey: worldY };
       } else {
         app.selectedIds.clear();
+        this.state.isPanning = true;
+        this.state.panStartX = screenX - app.panX;
+        this.state.panStartY = screenY - app.panY;
+        if (typeof app.hintPanned === 'function') app.hintPanned();
         app.render();
       }
       return;
@@ -145,24 +176,18 @@ const ToolManager = {
 
     if (tool === 'long' || tool === 'short') {
       const isLong = tool === 'long';
-      const slOffset = 30;
-      const tpOffset = 30;
-      const el = {
-        id: app.uid(),
+      this.state.active = true;
+      this.state.startX = worldX;
+      this.state.startY = worldY;
+      this.state.preview = {
         type: 'position',
         direction: tool,
         x: worldX,
         y: worldY,
-        slY: worldY + (isLong ? slOffset : -slOffset),
-        tpY: worldY - (isLong ? tpOffset : -tpOffset),
+        slY: worldY + (isLong ? 30 : -30),
+        tpY: worldY + (isLong ? -30 : 30),
         color: app.currentColor,
       };
-      app.elements.push(el);
-      app.selectedIds.clear();
-      app.selectedIds.add(el.id);
-      app.history.push(app.elements.map(e => ({ ...e })));
-      app.render();
-      app.setTool('pointer');
       return;
     }
 
@@ -172,7 +197,7 @@ const ToolManager = {
         type: 'pencil',
         points: [{ x: worldX, y: worldY }],
         color: app.currentColor,
-        width: 2.5,
+        width: app.currentWidth,
       };
       this.state.active = true;
       return;
@@ -186,6 +211,12 @@ const ToolManager = {
     this.state.preview = null;
   },
 
+  captureHistoryOnce() {
+    if (this.state.historyCaptured) return;
+    this.state.historyCaptured = true;
+    this.app.history.push(this.app.elements.map(el => ({ ...el })));
+  },
+
   onMouseMove(e) {
     const app = this.app;
     const { screenX, screenY, worldX, worldY } = this.getMouseWorld(e);
@@ -197,35 +228,65 @@ const ToolManager = {
       return;
     }
 
+    if (this.state.marqueeActive) {
+      this.state.marquee.ex = worldX;
+      this.state.marquee.ey = worldY;
+      app.render();
+      return;
+    }
+
     if (this.resizeState.active) {
       const el = app.elements[this.resizeState.elIndex];
+      if (el) {
+        this.state.pointerMoved = true;
+        this.captureHistoryOnce();
+      }
       if (el && el.type === 'text' && this.resizeState.handleType === 'fontSize') {
         const newSize = Math.max(8, Math.round((worldY - el.y) / 1.3));
         el.fontSize = newSize;
         this.state.pointerMoved = true;
         app.render();
-      } else if (el && el.type === 'rect' && this.resizeState.handleType === 'bottomRight') {
-        const left = Math.min(el.x, el.x + el.w);
-        const top = Math.min(el.y, el.y + el.h);
-        const newW = Math.max(10, worldX - left);
-        const newH = Math.max(10, worldY - top);
-        el.x = left;
-        el.y = top;
-        el.w = newW;
-        el.h = newH;
+      } else if (el && el.type === 'rect') {
+        const bx = el.x, by = el.y, bw = el.w, bh = el.h;
+        const left = Math.min(bx, bx + bw);
+        const top = Math.min(by, by + bh);
+        const right = Math.max(bx, bx + bw);
+        const bottom = Math.max(by, by + bh);
+        let nl = left, nt = top, nr = right, nb = bottom;
+        switch (this.resizeState.handleType) {
+          case 'nw': nl = worldX; nt = worldY; break;
+          case 'ne': nr = worldX; nt = worldY; break;
+          case 'sw': nl = worldX; nb = worldY; break;
+          case 'se': nr = worldX; nb = worldY; break;
+        }
+        if (nr - nl >= 10) { el.x = nl; el.w = nr - nl; }
+        if (nb - nt >= 10) { el.y = nt; el.h = nb - nt; }
+        this.state.pointerMoved = true;
+        app.render();
+      } else if (el && (el.type === 'line' || el.type === 'arrow')) {
+        if (this.resizeState.handleType === 'start') { el.x1 = worldX; el.y1 = worldY; }
+        else if (this.resizeState.handleType === 'end') { el.x2 = worldX; el.y2 = worldY; }
         this.state.pointerMoved = true;
         app.render();
       } else if (el && el.type === 'position') {
         switch (this.resizeState.handleType) {
           case 'sl':
-            el.slY = worldY;
+            el.slY = el.direction === 'long' ? Math.max(el.y, worldY) : Math.min(el.y, worldY);
             break;
           case 'tp':
-            el.tpY = worldY;
+            el.tpY = el.direction === 'long' ? Math.min(el.y, worldY) : Math.max(el.y, worldY);
             break;
-          case 'entry':
+          case 'entry': {
             el.y = worldY;
+            if (el.direction === 'long') {
+              el.slY = Math.max(el.y, el.slY);
+              el.tpY = Math.min(el.y, el.tpY);
+            } else {
+              el.slY = Math.min(el.y, el.slY);
+              el.tpY = Math.max(el.y, el.tpY);
+            }
             break;
+          }
         }
         this.state.pointerMoved = true;
         app.render();
@@ -268,6 +329,7 @@ const ToolManager = {
 
     if (this.state.active && app.currentTool === 'pointer' && this.state.dragElIndex >= 0) {
       this.state.pointerMoved = true;
+      this.captureHistoryOnce();
       const el = app.elements[this.state.dragElIndex];
       if (el) {
         const dx = worldX - this.state.dragOffsetX;
@@ -279,6 +341,8 @@ const ToolManager = {
         } else if (el.type === 'line' || el.type === 'arrow') {
           el.x1 += dx; el.y1 += dy;
           el.x2 += dx; el.y2 += dy;
+        } else if (el.type === 'position') {
+          el.x += dx; el.y += dy; el.slY += dy; el.tpY += dy;
         } else {
           el.x += dx; el.y += dy;
         }
@@ -326,13 +390,13 @@ const ToolManager = {
       case 'line':
         this.state.preview = {
           type: 'line', x1: sx, y1: sy, x2: worldX, y2: worldY,
-          color: app.currentColor, width: 2,
+          color: app.currentColor, width: app.currentWidth,
         };
         break;
       case 'arrow':
         this.state.preview = {
           type: 'arrow', x1: sx, y1: sy, x2: worldX, y2: worldY,
-          color: app.currentColor, width: 2.5,
+          color: app.currentColor, width: app.currentWidth,
         };
         break;
       case 'rect':
@@ -342,13 +406,28 @@ const ToolManager = {
           fillColor: hexToRGBA(app.currentColor, 0.12),
         };
         break;
+      case 'long':
+      case 'short': {
+        const dist = Math.max(10, Math.abs(worldY - sy));
+        const isLong = app.currentTool === 'long';
+        this.state.preview = {
+          type: 'position',
+          direction: app.currentTool,
+          x: sx,
+          y: sy,
+          slY: isLong ? sy + dist : sy - dist,
+          tpY: isLong ? sy - dist : sy + dist,
+          color: app.currentColor,
+        };
+        break;
+      }
       case 'pencil':
         this.state.pencilPoints.push({ x: worldX, y: worldY });
         this.state.preview = {
           type: 'pencil',
           points: [...this.state.pencilPoints],
           color: app.currentColor,
-          width: 2.5,
+          width: app.currentWidth,
         };
         break;
     }
@@ -364,15 +443,34 @@ const ToolManager = {
       return;
     }
 
+    if (this.state.marqueeActive) {
+      this.state.marqueeActive = false;
+      const m = this.state.marquee;
+      this.state.marquee = null;
+      if (!e.shiftKey) app.selectedIds.clear();
+      const lx = Math.min(m.sx, m.ex);
+      const ty = Math.min(m.sy, m.ey);
+      const rx = Math.max(m.sx, m.ex);
+      const by = Math.max(m.sy, m.ey);
+      for (const el of app.elements) {
+        const b = ChartRenderer.getBounds(el);
+        if (b.x <= rx && b.x + b.w >= lx && b.y <= by && b.y + b.h >= ty) {
+          app.selectedIds.add(el.id);
+        }
+      }
+      app.render();
+      return;
+    }
+
     if (this.resizeState.active) {
       this.resizeState.active = false;
       this.resizeState.elIndex = -1;
-      this.resizeState.candleIndex = -1;
       this.resizeState.handleType = null;
       if (this.state.pointerMoved) {
         app.history.push(app.elements.map(el => ({ ...el })));
       }
       this.state.pointerMoved = false;
+      this.state.historyCaptured = false;
       app.render();
       return;
     }
@@ -382,6 +480,7 @@ const ToolManager = {
       if (this.state.pointerMoved) {
         app.history.push(app.elements.map(el => ({ ...el })));
       }
+      this.state.historyCaptured = false;
       this.state.dragElIndex = -1;
       return;
     }
@@ -461,6 +560,19 @@ const ToolManager = {
       const d = Math.hypot(x - h.cx, y - h.cy);
       if (d < threshold) return h.type;
     }
+    const lineLen = 120;
+    if (x >= el.x - 4 && x <= el.x + lineLen + 4) {
+      if (Math.abs(y - el.slY) < 6) return 'sl';
+      if (Math.abs(y - el.tpY) < 6) return 'tp';
+    }
+    return null;
+  },
+
+  findLineHandle(x, y, el) {
+    const d1 = Math.hypot(x - el.x1, y - el.y1);
+    const d2 = Math.hypot(x - el.x2, y - el.y2);
+    if (d1 < 8) return 'start';
+    if (d2 < 8) return 'end';
     return null;
   },
 

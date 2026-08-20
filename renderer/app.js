@@ -8,9 +8,24 @@ const App = {
   history: new History(50),
   panX: 0,
   panY: 0,
+  zoom: 1,
+  currentWidth: 2,
   pendingTextPos: null,
   currentColor: '#e2e8f0',
   theme: 'dark',
+  spaceDown: false,
+  TOOL_NAMES: {
+    pointer: 'Pointer / Select',
+    candle: 'Candle',
+    line: 'Line',
+    arrow: 'Arrow',
+    rect: 'Rectangle',
+    text: 'Text',
+    pencil: 'Freehand Pencil',
+    long: 'Long Position',
+    short: 'Short Position',
+    eraser: 'Eraser',
+  },
 
   async init() {
     this.loadTheme();
@@ -24,6 +39,7 @@ const App = {
     this.setupToolbar();
     this.setupKeyboard();
     this.setupTextInput();
+    this.setupConfirmDialog();
 
     this.render();
 
@@ -44,15 +60,37 @@ const App = {
     ctx.clearRect(0, 0, ChartRenderer.width, ChartRenderer.height);
     ctx.save();
     ctx.translate(this.panX, this.panY);
+    ctx.scale(this.zoom, this.zoom);
 
     const previewEl = ToolManager.state.preview;
 
     const drawElements = [...this.elements];
     if (previewEl) drawElements.push(previewEl);
 
-    ChartRenderer.render(drawElements, this.hoveredElement, this.selectedIds, null);
+    const hovered = this.currentTool === 'eraser' ? null : this.hoveredElement;
+    ChartRenderer.render(drawElements, hovered, this.selectedIds, null, this.panX, this.panY, this.zoom);
+
+    if (ToolManager.state.marqueeActive && ToolManager.state.marquee) {
+      const m = ToolManager.state.marquee;
+      const mx = Math.min(m.sx, m.ex);
+      const my = Math.min(m.sy, m.ey);
+      const mw = Math.abs(m.ex - m.sx);
+      const mh = Math.abs(m.ey - m.sy);
+      ctx.fillStyle = 'rgba(99,102,241,0.12)';
+      ctx.fillRect(mx, my, mw, mh);
+      ctx.strokeStyle = '#6366f1';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(mx, my, mw, mh);
+      ctx.setLineDash([]);
+    }
+
+    if (this.currentTool === 'eraser' && this.hoveredElement) {
+      ChartRenderer.drawEraserPreview(ctx, this.hoveredElement);
+    }
 
     ctx.restore();
+    this.updateHistoryButtons();
   },
 
   setTool(tool) {
@@ -61,10 +99,15 @@ const App = {
       btn.classList.toggle('active', btn.dataset.tool === tool);
     });
 
+    const status = document.getElementById('tool-status');
+    if (status) {
+      status.textContent = this.TOOL_NAMES[tool] || tool;
+    }
+
     const canvas = this.canvas;
     canvas.classList.toggle('pointer-cursor', tool === 'pointer');
     canvas.classList.toggle('eraser-cursor', tool === 'eraser');
-    canvas.style.cursor = tool === 'eraser' ? 'not-allowed' :
+    canvas.style.cursor = tool === 'eraser' ? '' :
                           tool === 'pointer' ? 'default' :
                           tool === 'text' ? 'text' :
                           tool === 'pencil' ? 'crosshair' : 'crosshair';
@@ -75,6 +118,8 @@ const App = {
     this.canvas.addEventListener('mousemove', (e) => ToolManager.onMouseMove(e));
     this.canvas.addEventListener('mouseup', (e) => ToolManager.onMouseUp(e));
     this.canvas.addEventListener('mouseleave', () => {
+      ToolManager.state.marqueeActive = false;
+      ToolManager.state.marquee = null;
       if (!ToolManager.state.active) {
         ToolManager.state.active = false;
         ToolManager.state.preview = null;
@@ -84,6 +129,26 @@ const App = {
     });
 
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.canvas.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const rect = this.canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      this.zoomAt(sx, sy, e.deltaY < 0 ? 1.1 : 1 / 1.1);
+    });
+  },
+
+  zoomAt(sx, sy, factor) {
+    const oldZoom = this.zoom;
+    const newZoom = Math.min(4, Math.max(0.25, oldZoom * factor));
+    if (newZoom === oldZoom) return;
+    const wx = (sx - this.panX) / oldZoom;
+    const wy = (sy - this.panY) / oldZoom;
+    this.zoom = newZoom;
+    this.panX = sx - wx * newZoom;
+    this.panY = sy - wy * newZoom;
+    this.render();
   },
 
   setupToolbar() {
@@ -104,10 +169,27 @@ const App = {
         this.currentColor = btn.dataset.color;
       });
     });
+
+    const customColor = document.getElementById('custom-color');
+    customColor.addEventListener('input', () => {
+      this.currentColor = customColor.value;
+      document.querySelectorAll('.color-swatch[data-color]').forEach(b => b.classList.remove('active'));
+      document.getElementById('custom-color-wrap').classList.add('active');
+    });
+
+    const slider = document.getElementById('width-slider');
+    const widthVal = document.getElementById('width-value');
+    slider.addEventListener('input', () => {
+      this.currentWidth = parseInt(slider.value, 10);
+      widthVal.textContent = this.currentWidth;
+    });
   },
 
   setupKeyboard() {
     document.addEventListener('keydown', (e) => {
+      const tag = e.target && e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
       const key = e.key.toLowerCase();
 
       if (e.ctrlKey && e.shiftKey && key === 'z') {
@@ -118,6 +200,16 @@ const App = {
       if (e.ctrlKey && key === 'z') {
         e.preventDefault();
         this.undo();
+        return;
+      }
+      if (e.ctrlKey && key === 's') {
+        e.preventDefault();
+        this.exportPNG();
+        return;
+      }
+      if (key === ' ') {
+        e.preventDefault();
+        this.spaceDown = true;
         return;
       }
       if (key === 'v') { this.setTool('pointer'); return; }
@@ -140,6 +232,15 @@ const App = {
         }
       }
     });
+
+    document.addEventListener('keyup', (e) => {
+      if (e.key === ' ') this.spaceDown = false;
+    });
+  },
+
+  hintPanned() {
+    const hint = document.getElementById('pan-hint');
+    if (hint && !hint.classList.contains('faded')) hint.classList.add('faded');
   },
 
   setupTextInput() {
@@ -194,8 +295,8 @@ const App = {
   showTextInput(worldX, worldY) {
     const overlay = document.getElementById('text-input-overlay');
     const input = document.getElementById('text-input');
-    const screenX = worldX + this.panX;
-    const screenY = worldY + this.panY;
+    const screenX = worldX * this.zoom + this.panX;
+    const screenY = worldY * this.zoom + this.panY;
     overlay.classList.remove('hidden');
     overlay.style.left = Math.min(screenX, ChartRenderer.width - 220) + 'px';
     overlay.style.top = Math.min(screenY, ChartRenderer.height - 100) + 'px';
@@ -220,16 +321,54 @@ const App = {
 
   clearAll() {
     if (this.elements.length === 0) return;
-    this.elements = [];
-    this.selectedIds.clear();
-    this.history.push([]);
-    this.render();
+    const overlay = document.getElementById('confirm-overlay');
+    if (overlay) overlay.classList.remove('hidden');
+  },
+
+  setupConfirmDialog() {
+    const overlay = document.getElementById('confirm-overlay');
+    const okBtn = document.getElementById('confirm-ok');
+    const cancelBtn = document.getElementById('confirm-cancel');
+    const hide = () => overlay.classList.add('hidden');
+    okBtn.addEventListener('click', () => {
+      this.elements = [];
+      this.selectedIds.clear();
+      this.history.push([]);
+      this.render();
+      hide();
+    });
+    cancelBtn.addEventListener('click', hide);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) hide();
+    });
+  },
+
+  updateHistoryButtons() {
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    if (!undoBtn || !redoBtn) return;
+    undoBtn.disabled = !this.history.canUndo();
+    redoBtn.disabled = !this.history.canRedo();
   },
 
   exportPNG() {
+    const scale = 2;
+    const logicalW = this.canvas.width / ChartRenderer.dpr;
+    const logicalH = this.canvas.height / ChartRenderer.dpr;
+    const off = document.createElement('canvas');
+    off.width = Math.round(logicalW * scale);
+    off.height = Math.round(logicalH * scale);
+    const octx = off.getContext('2d');
+    octx.setTransform(scale, 0, 0, scale, 0, 0);
+    octx.translate(this.panX, this.panY);
+    octx.scale(this.zoom, this.zoom);
+    ChartRenderer.renderTo(octx, logicalW, logicalH, this.elements, null, this.selectedIds, null, this.panX, this.panY, this.zoom);
     const link = document.createElement('a');
-    link.download = 'price-action-chart.png';
-    link.href = this.canvas.toDataURL('image/png');
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    link.download = `price-action-chart-${stamp}.png`;
+    link.href = off.toDataURL('image/png');
     link.click();
   },
 
@@ -239,6 +378,7 @@ const App = {
     document.documentElement.setAttribute('data-theme', this.theme);
     ChartRenderer.setTheme(this.theme);
     if (this.theme === 'light') this.currentColor = '#1e293b';
+    this.syncActiveSwatch();
     this.updateThemeIcon();
   },
 
@@ -247,8 +387,29 @@ const App = {
     document.documentElement.setAttribute('data-theme', this.theme);
     localStorage.setItem('snip-draw-theme', this.theme);
     ChartRenderer.setTheme(this.theme);
+    if (this.theme === 'light' && this.currentColor === '#e2e8f0') {
+      this.currentColor = '#1e293b';
+    } else if (this.theme === 'dark' && this.currentColor === '#1e293b') {
+      this.currentColor = '#e2e8f0';
+    }
+    this.syncActiveSwatch();
     this.render();
     this.updateThemeIcon();
+  },
+
+  syncActiveSwatch() {
+    const custom = document.getElementById('custom-color');
+    const wrap = document.getElementById('custom-color-wrap');
+    let matched = false;
+    document.querySelectorAll('.color-swatch[data-color]').forEach(btn => {
+      const is = btn.dataset.color === this.currentColor;
+      btn.classList.toggle('active', is);
+      if (is) matched = true;
+    });
+    if (wrap) wrap.classList.toggle('active', !matched);
+    if (custom && !matched && custom.value.toLowerCase() !== this.currentColor.toLowerCase()) {
+      custom.value = this.currentColor;
+    }
   },
 
   updateThemeIcon() {
