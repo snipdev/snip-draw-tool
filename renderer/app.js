@@ -217,6 +217,20 @@ const App = {
         this.exportPNG();
         return;
       }
+      if (e.ctrlKey && key === 'a') {
+        e.preventDefault();
+        this.selectedIds = new Set(this.elements.map((el) => el.id));
+        this.render();
+        return;
+      }
+      if (e.ctrlKey && key === 'd') {
+        e.preventDefault();
+        if (this.selectedIds.size > 0) {
+          this.selectedIds.clear();
+          this.render();
+        }
+        return;
+      }
       if (key === ' ') {
         e.preventDefault();
         this.spaceDown = true;

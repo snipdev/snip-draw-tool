@@ -490,6 +490,9 @@ const ToolManager = {
     this.state.active = false;
 
     if (this.state.preview) {
+      if (this.state.preview.type === 'pencil') {
+        this.state.preview.points = this.simplifyPencil(this.state.preview.points, 2 / app.zoom);
+      }
       const el = { ...this.state.preview, id: app.uid() };
       app.elements.push(el);
       if (el.type !== 'candle') {
@@ -503,6 +506,35 @@ const ToolManager = {
         app.setTool('pointer');
       }
     }
+  },
+
+  simplifyPencil(points, tol) {
+    if (points.length < 3) return points;
+    let maxDist = 0;
+    let index = 0;
+    const first = points[0];
+    const last = points[points.length - 1];
+    for (let i = 1; i < points.length - 1; i++) {
+      const d = this.perpDist(points[i], first, last);
+      if (d > maxDist) {
+        maxDist = d;
+        index = i;
+      }
+    }
+    if (maxDist > tol) {
+      const left = this.simplifyPencil(points.slice(0, index + 1), tol);
+      const right = this.simplifyPencil(points.slice(index), tol);
+      return left.slice(0, -1).concat(right);
+    }
+    return [first, last];
+  },
+
+  perpDist(p, a, b) {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    return Math.abs((p.x - a.x) * dy - (p.y - a.y) * dx) / len;
   },
 
   findNearest(x, y) {
