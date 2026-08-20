@@ -607,7 +607,7 @@ const ToolManager = {
         const ry = Math.min(el.y, el.y + el.h);
         const rw = Math.abs(el.w);
         const rh = Math.abs(el.h);
-        return Math.min(this.pointRectDist(x, y, rx - 4, ry - 4, rw + 8, rh + 8), 10);
+        return this.pointRectDist(x, y, rx - 4, ry - 4, rw + 8, rh + 8);
       }
       case 'text': {
         const fs = el.fontSize || 14;
