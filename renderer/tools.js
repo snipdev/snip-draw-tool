@@ -65,7 +65,7 @@ const ToolManager = {
       const idx = this.findNearest(worldX, worldY);
       if (idx !== -1) {
         app.elements.splice(idx, 1);
-        app.history.push(app.elements.map(el => ({ ...el })));
+        app.history.push(app.snapshot());
         app.render();
       } else {
         this.state.isPanning = true;
@@ -214,7 +214,7 @@ const ToolManager = {
   captureHistoryOnce() {
     if (this.state.historyCaptured) return;
     this.state.historyCaptured = true;
-    this.app.history.push(this.app.elements.map(el => ({ ...el })));
+    this.app.history.push(this.app.snapshot());
   },
 
   onMouseMove(e) {
@@ -467,7 +467,7 @@ const ToolManager = {
       this.resizeState.elIndex = -1;
       this.resizeState.handleType = null;
       if (this.state.pointerMoved) {
-        app.history.push(app.elements.map(el => ({ ...el })));
+        app.history.push(app.snapshot());
       }
       this.state.pointerMoved = false;
       this.state.historyCaptured = false;
@@ -478,7 +478,7 @@ const ToolManager = {
     if (app.currentTool === 'pointer' && this.state.dragElIndex >= 0) {
       this.state.active = false;
       if (this.state.pointerMoved) {
-        app.history.push(app.elements.map(el => ({ ...el })));
+        app.history.push(app.snapshot());
       }
       this.state.historyCaptured = false;
       this.state.dragElIndex = -1;
@@ -496,7 +496,7 @@ const ToolManager = {
         app.selectedIds.clear();
         app.selectedIds.add(el.id);
       }
-      app.history.push(app.elements.map(el => ({ ...el })));
+      app.history.push(app.snapshot());
       this.state.preview = null;
       app.render();
       if (el.type !== 'candle') {
@@ -576,21 +576,6 @@ const ToolManager = {
     return null;
   },
 
-  findPatternCandleAt(x, y, pattern) {
-    let nearest = -1;
-    let minDist = 20;
-    for (let i = 0; i < pattern.candles.length; i++) {
-      const absCandle = ChartRenderer.getPatternCandleAbs(pattern, i);
-      const top = Math.min(absCandle.high, absCandle.open, absCandle.close);
-      const bot = Math.max(absCandle.low, absCandle.open, absCandle.close);
-      const d = this.pointRectDist(x, y,
-        absCandle.x - absCandle.width / 2 - 4, top - 4,
-        absCandle.width + 8, bot - top + 8);
-      if (d < minDist) { minDist = d; nearest = i; }
-    }
-    return nearest;
-  },
-
   distanceTo(x, y, el) {
     switch (el.type) {
       case 'candle': {
@@ -614,18 +599,6 @@ const ToolManager = {
         const lh = fs * 1.3;
         const lines = (el.text || '').split('\n');
         return this.pointRectDist(x, y, el.x - 4, el.y - 4, 200, lines.length * lh + 8);
-      }
-      case 'pattern': {
-        let min = Infinity;
-        for (const c of el.candles) {
-          const cx = el.x + c.dx;
-          const top = el.y + Math.min(c.open, c.close, c.high);
-          const bot = el.y + Math.max(c.open, c.close, c.low);
-          const w = c.width || 14;
-          const d = this.pointRectDist(x, y, cx - w / 2 - 3, top - 3, w + 6, bot - top + 6);
-          if (d < min) min = d;
-        }
-        return min;
       }
       case 'pencil': {
         const pts = el.points;

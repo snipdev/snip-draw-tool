@@ -68,7 +68,7 @@ const App = {
     if (previewEl) drawElements.push(previewEl);
 
     const hovered = this.currentTool === 'eraser' ? null : this.hoveredElement;
-    ChartRenderer.render(drawElements, hovered, this.selectedIds, null, this.panX, this.panY, this.zoom);
+    ChartRenderer.render(drawElements, hovered, this.selectedIds, this.panX, this.panY, this.zoom);
 
     if (ToolManager.state.marqueeActive && ToolManager.state.marquee) {
       const m = ToolManager.state.marquee;
@@ -160,6 +160,14 @@ const App = {
     document.getElementById('redo-btn').addEventListener('click', () => this.redo());
     document.getElementById('clear-btn').addEventListener('click', () => this.clearAll());
     document.getElementById('export-btn').addEventListener('click', () => this.exportPNG());
+    document.getElementById('save-btn').addEventListener('click', () => this.saveProject());
+    document.getElementById('load-btn').addEventListener('click', () => {
+      document.getElementById('load-file').click();
+    });
+    document.getElementById('load-file').addEventListener('change', (e) => {
+      this.loadProject(e.target.files[0]);
+      e.target.value = '';
+    });
     document.getElementById('theme-btn').addEventListener('click', () => this.toggleTheme());
 
     document.querySelectorAll('.color-swatch').forEach(btn => {
@@ -227,7 +235,7 @@ const App = {
         if (this.selectedIds.size > 0) {
           this.elements = this.elements.filter(el => !this.selectedIds.has(el.id));
           this.selectedIds.clear();
-          this.history.push(this.elements.map(el => ({ ...el })));
+          this.history.push(this.snapshot());
           this.render();
         }
       }
@@ -263,7 +271,7 @@ const App = {
         });
         this.selectedIds.clear();
         this.selectedIds.add(this.elements[this.elements.length - 1].id);
-        this.history.push(this.elements.map(el => ({ ...el })));
+        this.history.push(this.snapshot());
         this.render();
         this.setTool('pointer');
         this.render();
@@ -305,7 +313,7 @@ const App = {
 
   undo() {
     if (this.history.canUndo()) {
-      this.elements = this.history.undo().map(el => ({ ...el }));
+      this.elements = this.history.undo().map(el => structuredClone(el));
       this.selectedIds.clear();
       this.render();
     }
@@ -313,7 +321,7 @@ const App = {
 
   redo() {
     if (this.history.canRedo()) {
-      this.elements = this.history.redo().map(el => ({ ...el }));
+      this.elements = this.history.redo().map(el => structuredClone(el));
       this.selectedIds.clear();
       this.render();
     }
@@ -351,6 +359,57 @@ const App = {
     redoBtn.disabled = !this.history.canRedo();
   },
 
+  snapshot() {
+    return (typeof structuredClone === 'function')
+      ? structuredClone(this.elements)
+      : JSON.parse(JSON.stringify(this.elements));
+  },
+
+  saveProject() {
+    const data = {
+      version: 1,
+      app: 'snip-draw-tool',
+      theme: this.theme,
+      elements: this.elements,
+    };
+    const link = document.createElement('a');
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    link.download = `snip-draw-project-${stamp}.json`;
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    link.click();
+    URL.revokeObjectURL(link.href);
+  },
+
+  loadProject(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!data || !Array.isArray(data.elements)) {
+          alert('Geçersiz proje dosyası.');
+          return;
+        }
+        if (data.theme === 'light' || data.theme === 'dark') {
+          this.theme = data.theme;
+          document.documentElement.setAttribute('data-theme', this.theme);
+          this.updateThemeIcon();
+          this.syncActiveSwatch();
+        }
+        this.elements = data.elements;
+        this.selectedIds.clear();
+        this.history = new History(50);
+        this.history.push(this.snapshot());
+        this.render();
+      } catch (err) {
+        alert('Proje dosyası okunamadı: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  },
+
   exportPNG() {
     const scale = 2;
     const logicalW = this.canvas.width / ChartRenderer.dpr;
@@ -362,7 +421,7 @@ const App = {
     octx.setTransform(scale, 0, 0, scale, 0, 0);
     octx.translate(this.panX, this.panY);
     octx.scale(this.zoom, this.zoom);
-    ChartRenderer.renderTo(octx, logicalW, logicalH, this.elements, null, this.selectedIds, null, this.panX, this.panY, this.zoom);
+    ChartRenderer.renderTo(octx, logicalW, logicalH, this.elements, null, this.selectedIds, this.panX, this.panY, this.zoom);
     const link = document.createElement('a');
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');

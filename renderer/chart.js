@@ -31,18 +31,6 @@ const ChartRenderer = {
     bearish: '#ef4444',
   },
 
-  getPatternCandleAbs(pattern, candleIndex) {
-    const c = pattern.candles[candleIndex];
-    return {
-      x: pattern.x + c.dx,
-      open: pattern.y + c.open,
-      close: pattern.y + c.close,
-      high: pattern.y + c.high,
-      low: pattern.y + c.low,
-      width: c.width || 14,
-    };
-  },
-
   init(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
@@ -61,11 +49,11 @@ const ChartRenderer = {
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
   },
 
-  render(elements, hoveredElement, selectedIds, placingPattern, panX, panY, zoom) {
-    this.renderTo(this.ctx, this.width, this.height, elements, hoveredElement, selectedIds, placingPattern, panX, panY, zoom);
+  render(elements, hoveredElement, selectedIds, panX, panY, zoom) {
+    this.renderTo(this.ctx, this.width, this.height, elements, hoveredElement, selectedIds, panX, panY, zoom);
   },
 
-  renderTo(ctx, width, height, elements, hoveredElement, selectedIds, placingPattern, panX, panY, zoom) {
+  renderTo(ctx, width, height, elements, hoveredElement, selectedIds, panX, panY, zoom) {
     this.drawGrid(ctx, width, height, panX, panY, zoom);
 
     for (const el of elements) {
@@ -76,10 +64,6 @@ const ChartRenderer = {
     if (hoveredElement) {
       const isHovSelected = selectedIds && selectedIds.has(hoveredElement.id);
       this.drawElement(ctx, hoveredElement, isHovSelected, true);
-    }
-
-    if (placingPattern) {
-      this.drawPatternPreview(ctx, placingPattern);
     }
   },
 
@@ -118,7 +102,6 @@ const ChartRenderer = {
       case 'arrow': this.drawArrow(ctx, el, isSelected, isHovered); break;
       case 'rect': this.drawRectangle(ctx, el, isSelected, isHovered); break;
       case 'text': this.drawText(ctx, el, isSelected, isHovered); break;
-      case 'pattern': this.drawPattern(ctx, el, isSelected, isHovered); break;
       case 'pencil': this.drawPencil(ctx, el, isSelected, isHovered); break;
       case 'position': this.drawPosition(ctx, el, isSelected, isHovered); break;
     }
@@ -316,50 +299,6 @@ const ChartRenderer = {
 
     if (isSelected) {
       this.drawTextHandles(ctx, t);
-    }
-    ctx.restore();
-  },
-
-  drawPattern(ctx, p, isSelected, isHovered) {
-    ctx.save();
-    for (let i = 0; i < p.candles.length; i++) {
-      const absCandle = this.getPatternCandleAbs(p, i);
-      this.drawCandle(ctx, absCandle, false, false);
-    }
-
-    if (isSelected || isHovered) {
-      let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity;
-      for (const c of p.candles) {
-        const cx = p.x + c.dx;
-        const cy = p.y;
-        const top = cy + Math.min(c.open, c.close, c.high);
-        const bot = cy + Math.max(c.open, c.close, c.low);
-        if (cx - (c.width || 14) / 2 < minX) minX = cx - (c.width || 14) / 2;
-        if (cx + (c.width || 14) / 2 > maxX) maxX = cx + (c.width || 14) / 2;
-        if (top < minY) minY = top;
-        if (bot > maxY) maxY = bot;
-      }
-      ctx.strokeStyle = this.selectionColor;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 3]);
-      ctx.strokeRect(minX - 5, minY - 5, maxX - minX + 10, maxY - minY + 10);
-      ctx.setLineDash([]);
-    }
-    ctx.restore();
-  },
-
-  drawPatternPreview(ctx, p) {
-    ctx.save();
-    ctx.globalAlpha = 0.6;
-    for (const c of p.candles) {
-      this.drawCandle(ctx, {
-        x: p.x + c.dx,
-        open: p.y + c.open,
-        close: p.y + c.close,
-        high: p.y + c.high,
-        low: p.y + c.low,
-        width: c.width || 14,
-      }, false, true);
     }
     ctx.restore();
   },
@@ -627,19 +566,18 @@ const ChartRenderer = {
       }
       case 'text': {
         const fs = el.fontSize || 14;
-        return { x: el.x, y: el.y, w: 200, h: (el.text || '').split('\n').length * fs * 1.3 };
-      }
-      case 'pattern': {
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const c of el.candles) {
-          const cx = el.x + c.dx;
-          const top = el.y + Math.min(c.open, c.close, c.high);
-          const bot = el.y + Math.max(c.open, c.close, c.low);
-          const w = c.width || 14;
-          minX = Math.min(minX, cx - w / 2); maxX = Math.max(maxX, cx + w / 2);
-          minY = Math.min(minY, top); maxY = Math.max(maxY, bot);
+        const lines = (el.text || '').split('\n');
+        let maxW = 0;
+        if (this.ctx) {
+          this.ctx.save();
+          this.ctx.font = `${fs}px system-ui, -apple-system, sans-serif`;
+          for (const line of lines) {
+            const m = this.ctx.measureText(line);
+            if (m.width > maxW) maxW = m.width;
+          }
+          this.ctx.restore();
         }
-        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+        return { x: el.x, y: el.y, w: maxW, h: lines.length * fs * 1.3 };
       }
       case 'pencil': {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
