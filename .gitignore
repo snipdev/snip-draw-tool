@@ -3,3 +3,4 @@ error.log
 output.log
 dist/
 *.log
+.freebuff/
