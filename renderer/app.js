@@ -209,6 +209,11 @@ const App = {
       }
       if (e.ctrlKey && key === 's') {
         e.preventDefault();
+        this.saveProject();
+        return;
+      }
+      if (e.ctrlKey && key === 'e') {
+        e.preventDefault();
         this.exportPNG();
         return;
       }

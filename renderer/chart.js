@@ -567,16 +567,7 @@ const ChartRenderer = {
       case 'text': {
         const fs = el.fontSize || 14;
         const lines = (el.text || '').split('\n');
-        let maxW = 0;
-        if (this.ctx) {
-          this.ctx.save();
-          this.ctx.font = `${fs}px system-ui, -apple-system, sans-serif`;
-          for (const line of lines) {
-            const m = this.ctx.measureText(line);
-            if (m.width > maxW) maxW = m.width;
-          }
-          this.ctx.restore();
-        }
+        const maxW = this.getTextWidth(el.text, fs);
         return { x: el.x, y: el.y, w: maxW, h: lines.length * fs * 1.3 };
       }
       case 'pencil': {
@@ -595,6 +586,19 @@ const ChartRenderer = {
       }
       default: return { x: el.x, y: el.y, w: 0, h: 0 };
     }
+  },
+
+  getTextWidth(text, fs) {
+    if (!this.ctx) return 0;
+    this.ctx.save();
+    this.ctx.font = `${fs}px system-ui, -apple-system, sans-serif`;
+    let maxW = 0;
+    for (const line of String(text || '').split('\n')) {
+      const m = this.ctx.measureText(line);
+      if (m.width > maxW) maxW = m.width;
+    }
+    this.ctx.restore();
+    return maxW;
   },
 
   drawEraserPreview(ctx, el) {

@@ -598,7 +598,8 @@ const ToolManager = {
         const fs = el.fontSize || 14;
         const lh = fs * 1.3;
         const lines = (el.text || '').split('\n');
-        return this.pointRectDist(x, y, el.x - 4, el.y - 4, 200, lines.length * lh + 8);
+        const w = ChartRenderer.getTextWidth(el.text, fs);
+        return this.pointRectDist(x, y, el.x - 4, el.y - 4, w + 8, lines.length * lh + 8);
       }
       case 'pencil': {
         const pts = el.points;

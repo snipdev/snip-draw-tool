@@ -34,7 +34,7 @@ function createMenu() {
         },
         {
           label: 'Save Project',
-          accelerator: 'CmdOrCtrl+Shift+S',
+          accelerator: 'CmdOrCtrl+S',
           click: (_item, win) => win.webContents.send('menu:save-project'),
         },
         { type: 'separator' },
