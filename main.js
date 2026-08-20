@@ -28,14 +28,14 @@ function createMenu() {
       label: 'File',
       submenu: [
         {
-          label: 'Save Project',
-          accelerator: 'CmdOrCtrl+Shift+S',
-          click: (_item, win) => win.webContents.send('menu:save-project'),
-        },
-        {
           label: 'Load Project',
           accelerator: 'CmdOrCtrl+O',
           click: (_item, win) => win.webContents.send('menu:load-project'),
+        },
+        {
+          label: 'Save Project',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: (_item, win) => win.webContents.send('menu:save-project'),
         },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },

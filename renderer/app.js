@@ -468,7 +468,10 @@ const App = {
       btn.classList.toggle('active', is);
       if (is) matched = true;
     });
-    if (wrap) wrap.classList.toggle('active', !matched);
+    if (wrap) {
+      wrap.classList.toggle('active', !matched);
+      wrap.style.background = matched ? '' : this.currentColor;
+    }
     if (custom && !matched && custom.value.toLowerCase() !== this.currentColor.toLowerCase()) {
       custom.value = this.currentColor;
     }

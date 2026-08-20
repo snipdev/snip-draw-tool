@@ -383,30 +383,27 @@ body {
 }
 
 .custom-color-wrap {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  background: conic-gradient(#ef4444, #f59e0b, #eab308, #22c55e, #22d3ee, #6366f1, #d946ef, #ef4444);
+  background-size: cover;
 }
 
 .custom-color-wrap input[type="color"] {
   -webkit-appearance: none;
   appearance: none;
-  width: 20px;
-  height: 20px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   border: none;
   padding: 0;
-  background: none;
+  background: transparent;
+  opacity: 0;
   cursor: pointer;
-  border-radius: 50%;
-}
-
-.custom-color-wrap input[type="color"]::-webkit-color-swatch-wrapper {
-  padding: 0;
-}
-
-.custom-color-wrap input[type="color"]::-webkit-color-swatch {
-  border: none;
   border-radius: 50%;
 }
 
