@@ -160,15 +160,12 @@ const App = {
     document.getElementById('redo-btn').addEventListener('click', () => this.redo());
     document.getElementById('clear-btn').addEventListener('click', () => this.clearAll());
     document.getElementById('export-btn').addEventListener('click', () => this.exportPNG());
-    document.getElementById('save-btn').addEventListener('click', () => this.saveProject());
-    document.getElementById('load-btn').addEventListener('click', () => {
-      document.getElementById('load-file').click();
-    });
-    document.getElementById('load-file').addEventListener('change', (e) => {
-      this.loadProject(e.target.files[0]);
-      e.target.value = '';
-    });
     document.getElementById('theme-btn').addEventListener('click', () => this.toggleTheme());
+
+    if (window.electronAPI) {
+      window.electronAPI.onSaveRequest(() => this.saveProject());
+      window.electronAPI.onLoadRequest(() => this.loadProject());
+    }
 
     document.querySelectorAll('.color-swatch').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -365,13 +362,17 @@ const App = {
       : JSON.parse(JSON.stringify(this.elements));
   },
 
-  saveProject() {
+  async saveProject() {
     const data = {
       version: 1,
       app: 'snip-draw-tool',
       theme: this.theme,
       elements: this.elements,
     };
+    if (window.electronAPI) {
+      await window.electronAPI.saveProject(data);
+      return;
+    }
     const link = document.createElement('a');
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
@@ -382,32 +383,34 @@ const App = {
     URL.revokeObjectURL(link.href);
   },
 
-  loadProject(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
+  async loadProject() {
+    if (window.electronAPI) {
+      const res = await window.electronAPI.loadProject();
+      if (!res.ok) return;
       try {
-        const data = JSON.parse(reader.result);
-        if (!data || !Array.isArray(data.elements)) {
-          alert('Geçersiz proje dosyası.');
-          return;
-        }
-        if (data.theme === 'light' || data.theme === 'dark') {
-          this.theme = data.theme;
-          document.documentElement.setAttribute('data-theme', this.theme);
-          this.updateThemeIcon();
-          this.syncActiveSwatch();
-        }
-        this.elements = data.elements;
-        this.selectedIds.clear();
-        this.history = new History(50);
-        this.history.push(this.snapshot());
-        this.render();
+        this.applyProject(JSON.parse(res.content));
       } catch (err) {
         alert('Proje dosyası okunamadı: ' + err.message);
       }
-    };
-    reader.readAsText(file);
+    }
+  },
+
+  applyProject(data) {
+    if (!data || !Array.isArray(data.elements)) {
+      alert('Geçersiz proje dosyası.');
+      return;
+    }
+    if (data.theme === 'light' || data.theme === 'dark') {
+      this.theme = data.theme;
+      document.documentElement.setAttribute('data-theme', this.theme);
+      this.updateThemeIcon();
+      this.syncActiveSwatch();
+    }
+    this.elements = data.elements;
+    this.selectedIds.clear();
+    this.history = new History(50);
+    this.history.push(this.snapshot());
+    this.render();
   },
 
   exportPNG() {
