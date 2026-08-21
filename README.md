@@ -36,7 +36,7 @@ renderer/
 
 ## Build
 
-`npm run dist` produces `dist/Snip Draw Tool 1.0.0.exe` (portable).
+`npm run dist` produces `dist/Snip Draw Tool 1.1.0.exe` (portable).
 
 ## License
 
