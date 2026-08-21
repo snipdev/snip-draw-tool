@@ -1,6 +1,8 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
+
+let mainWindow = null;
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -18,6 +20,8 @@ function createWindow() {
   });
 
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  mainWindow = win;
+  win.on('closed', () => { if (mainWindow === win) mainWindow = null; });
 }
 
 function createMenu() {
@@ -30,12 +34,12 @@ function createMenu() {
         {
           label: 'Load Project',
           accelerator: 'CmdOrCtrl+O',
-          click: (_item, win) => win.webContents.send('menu:load-project'),
+          click: (_item, win) => (win || mainWindow)?.webContents.send('menu:load-project'),
         },
         {
           label: 'Save Project',
           accelerator: 'CmdOrCtrl+S',
-          click: (_item, win) => win.webContents.send('menu:save-project'),
+          click: (_item, win) => (win || mainWindow)?.webContents.send('menu:save-project'),
         },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },
@@ -48,38 +52,61 @@ function createMenu() {
 }
 
 ipcMain.handle('project:save', async (event, data) => {
-  const win = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow();
-  const result = await dialog.showSaveDialog(win, {
-    title: 'Save Project',
-    defaultPath: 'snip-draw-project.json',
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-  });
-  if (result.canceled || !result.filePath) return { ok: false };
-  fs.writeFileSync(result.filePath, JSON.stringify(data, null, 2), 'utf8');
-  return { ok: true, path: result.filePath };
+  const win = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow() || mainWindow;
+  try {
+    const result = await dialog.showSaveDialog(win, {
+      title: 'Save Project',
+      defaultPath: 'snip-draw-project.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (result.canceled || !result.filePath) return { ok: false };
+    await fs.writeFile(result.filePath, JSON.stringify(data, null, 2), 'utf8');
+    return { ok: true, path: result.filePath };
+  } catch (err) {
+    dialog.showErrorBox('Save failed', String(err.message || err));
+    return { ok: false, error: String(err.message || err) };
+  }
 });
 
 ipcMain.handle('project:load', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow();
-  const result = await dialog.showOpenDialog(win, {
-    title: 'Load Project',
-    filters: [{ name: 'JSON', extensions: ['json'] }],
-    properties: ['openFile'],
+  const win = BrowserWindow.fromWebContents(event.sender) || BrowserWindow.getFocusedWindow() || mainWindow;
+  try {
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Load Project',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile'],
+    });
+    if (result.canceled || !result.filePaths.length) return { ok: false };
+    const content = await fs.readFile(result.filePaths[0], 'utf8');
+    // Validate JSON early to give a clear error
+    JSON.parse(content);
+    return { ok: true, path: result.filePaths[0], content };
+  } catch (err) {
+    dialog.showErrorBox('Load failed', String(err.message || err));
+    return { ok: false, error: String(err.message || err) };
+  }
+});
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
   });
-  if (result.canceled || !result.filePaths.length) return { ok: false };
-  const content = fs.readFileSync(result.filePaths[0], 'utf8');
-  return { ok: true, path: result.filePaths[0], content };
-});
 
-app.whenReady().then(() => {
-  createMenu();
-  createWindow();
-});
+  app.whenReady().then(() => {
+    createMenu();
+    createWindow();
+  });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
-});
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') app.quit();
+  });
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
-});
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+}

@@ -52,7 +52,7 @@ const App = {
   },
 
   uid() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    return (typeof uid === 'function' ? uid() : (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 8)));
   },
 
   render() {

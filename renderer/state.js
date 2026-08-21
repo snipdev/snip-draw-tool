@@ -10,33 +10,31 @@ class History {
   }
 
   push(snapshot) {
-    this.stack = this.stack.slice(0, this.index + 1);
+    this.stack.length = this.index + 1;
     this.stack.push(snapshot);
-    if (this.stack.length > this.maxSteps) {
-      this.stack.shift();
-    }
+    if (this.stack.length > this.maxSteps) this.stack.shift();
     this.index = this.stack.length - 1;
   }
 
   undo() {
-    if (this.index > 0) {
-      this.index--;
-    }
+    if (this.index > 0) this.index--;
     return this.current;
   }
 
   redo() {
-    if (this.index < this.stack.length - 1) {
-      this.index++;
-    }
+    if (this.index < this.stack.length - 1) this.index++;
     return this.current;
   }
 
-  canUndo() {
-    return this.index > 0;
+  canUndo() { return this.index > 0; }
+  canRedo() { return this.index < this.stack.length - 1; }
+  clear() {
+    this.stack = [[]];
+    this.index = 0;
   }
+}
 
-  canRedo() {
-    return this.index < this.stack.length - 1;
-  }
+function uid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }

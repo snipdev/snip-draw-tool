@@ -5,6 +5,20 @@ function hexToRGBA(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+const HIT = {
+  SELECT: 20,
+  HANDLE_CANDLE: 4,
+  HANDLE_TEXT: 6,
+  HANDLE_RECT: 6,
+  HANDLE_POSITION: 8,
+  HANDLE_LINE: 8,
+};
+
+const MIN = {
+  RECT: 10,
+  CANDLE_WIDTH: 6,
+};
+
 const ToolManager = {
   app: null,
   state: {
@@ -259,8 +273,8 @@ const ToolManager = {
           case 'sw': nl = worldX; nb = worldY; break;
           case 'se': nr = worldX; nb = worldY; break;
         }
-        if (nr - nl >= 10) { el.x = nl; el.w = nr - nl; }
-        if (nb - nt >= 10) { el.y = nt; el.h = nb - nt; }
+        if (nr - nl >= MIN.RECT) { el.x = nl; el.w = nr - nl; }
+        if (nb - nt >= MIN.RECT) { el.y = nt; el.h = nb - nt; }
         this.state.pointerMoved = true;
         app.render();
       } else if (el && (el.type === 'line' || el.type === 'arrow')) {
@@ -311,13 +325,13 @@ const ToolManager = {
           case 'left': {
             const rightEdge = el.x + el.width / 2;
             const newW = rightEdge - worldX;
-            if (newW > 6) { el.width = newW; el.x = worldX + newW / 2; }
+            if (newW > MIN.CANDLE_WIDTH) { el.width = newW; el.x = worldX + newW / 2; }
             break;
           }
           case 'right': {
             const leftEdge = el.x - el.width / 2;
             const newW = worldX - leftEdge;
-            if (newW > 6) { el.width = newW; el.x = leftEdge + newW / 2; }
+            if (newW > MIN.CANDLE_WIDTH) { el.width = newW; el.x = leftEdge + newW / 2; }
             break;
           }
         }
@@ -539,7 +553,7 @@ const ToolManager = {
 
   findNearest(x, y) {
     const app = this.app;
-    let minDist = 20;
+    let minDist = HIT.SELECT;
     let nearestIdx = -1;
 
     for (let i = app.elements.length - 1; i >= 0; i--) {
@@ -555,7 +569,7 @@ const ToolManager = {
 
   findHandle(x, y, candle) {
     const handles = ChartRenderer.getCandleHandles(candle);
-    const threshold = 4;
+    const threshold = HIT.HANDLE_CANDLE;
     let nearest = null;
     let minDist = threshold;
     for (const h of handles) {
@@ -572,12 +586,12 @@ const ToolManager = {
     const ctx = ChartRenderer.ctx;
     const h = ChartRenderer.getTextHandle(el, ctx);
     const d = Math.hypot(x - h.cx, y - h.cy);
-    return d < 6 ? 'fontSize' : null;
+    return d < HIT.HANDLE_TEXT ? 'fontSize' : null;
   },
 
   findRectHandle(x, y, el) {
     const handles = ChartRenderer.getRectHandles(el);
-    const threshold = 6;
+    const threshold = HIT.HANDLE_RECT;
     for (const h of handles) {
       const d = Math.hypot(x - h.cx, y - h.cy);
       if (d < threshold) return h.type;
@@ -587,15 +601,15 @@ const ToolManager = {
 
   findPositionHandle(x, y, el) {
     const handles = ChartRenderer.getPositionHandles(el);
-    const threshold = 8;
+    const threshold = HIT.HANDLE_POSITION;
     for (const h of handles) {
       const d = Math.hypot(x - h.cx, y - h.cy);
       if (d < threshold) return h.type;
     }
     const lineLen = 120;
     if (x >= el.x - 4 && x <= el.x + lineLen + 4) {
-      if (Math.abs(y - el.slY) < 6) return 'sl';
-      if (Math.abs(y - el.tpY) < 6) return 'tp';
+      if (Math.abs(y - el.slY) < HIT.HANDLE_TEXT) return 'sl';
+      if (Math.abs(y - el.tpY) < HIT.HANDLE_TEXT) return 'tp';
     }
     return null;
   },
@@ -603,8 +617,8 @@ const ToolManager = {
   findLineHandle(x, y, el) {
     const d1 = Math.hypot(x - el.x1, y - el.y1);
     const d2 = Math.hypot(x - el.x2, y - el.y2);
-    if (d1 < 8) return 'start';
-    if (d2 < 8) return 'end';
+    if (d1 < HIT.HANDLE_LINE) return 'start';
+    if (d2 < HIT.HANDLE_LINE) return 'end';
     return null;
   },
 
